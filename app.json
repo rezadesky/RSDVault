@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "aplikasimanajemenkeuangan",
-    "slug": "aplikasimanajemenkeuangan",
+    "name": "RSDVault",
+    "slug": "rsdvault",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rsdvault.app"
     },
     "android": {
+      "package": "com.rsdvault.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -18,8 +20,35 @@
       },
       "predictiveBackGestureEnabled": false
     },
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#F8FAFC",
+      "translucent": false
+    },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-font",
+      [
+        "expo-navigation-bar",
+        {
+          "backgroundColor": "#FFFFFF",
+          "barStyle": "dark",
+          "visibility": "visible",
+          "position": "relative"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RSDVault membutuhkan akses galeri untuk memilih dan mengubah foto profil akun Anda."
+        }
+      ],
+      "expo-sharing"
+    ]
   }
 }
