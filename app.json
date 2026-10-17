@@ -49,6 +49,21 @@
         }
       ],
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "expo-navigation-bar": {
+        "style": "dark",
+        "hidden": false
+      },
+      "eas": {
+        "projectId": "b53e14a6-91b0-4370-a493-1f6312ed27a0"
+      }
+    },
+    "owner": "rezadesky"
   }
 }
