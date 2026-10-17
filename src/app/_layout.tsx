@@ -8,8 +8,10 @@ import {
   Onest_700Bold,
   Onest_800ExtraBold,
 } from '@expo-google-fonts/onest';
+import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initDatabase } from '../database/db';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -19,6 +21,14 @@ export default function RootLayout() {
     Onest_700Bold,
     Onest_800ExtraBold,
   });
+
+  useEffect(() => {
+    try {
+      initDatabase();
+    } catch (e) {
+      console.warn('initDatabase in RootLayout error:', e);
+    }
+  }, []);
 
   if (!fontsLoaded) {
     return (

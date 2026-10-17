@@ -41,93 +41,134 @@ let memoryProfile: UserProfile = {
 };
 
 let db: SQLite.SQLiteDatabase | null = null;
-if (Platform.OS !== 'web') {
-  try {
-    db = SQLite.openDatabaseSync('finance.db');
-  } catch (err) {
-    console.warn('SQLite init fallback to memory:', err);
+let isDbInitialized = false;
+
+function getDb(): SQLite.SQLiteDatabase | null {
+  if (Platform.OS === 'web') return null;
+  if (!db) {
+    try {
+      db = SQLite.openDatabaseSync('finance.db');
+    } catch (err) {
+      console.warn('SQLite openDatabaseSync error:', err);
+      db = null;
+    }
   }
+  return db;
 }
 
 export function initDatabase() {
-  if (db) {
-    db.execSync(`
-      CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        type TEXT NOT NULL,
-        category TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS user_profile (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        email TEXT NOT NULL,
-        monthly_income_target INTEGER NOT NULL,
-        currency TEXT NOT NULL,
-        avatar_uri TEXT
-      );
-      CREATE TABLE IF NOT EXISTS budgets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category TEXT NOT NULL UNIQUE,
-        limit_amount INTEGER NOT NULL
-      );
-    `);
+  if (isDbInitialized) return;
+  const database = getDb();
+  if (database) {
+    try {
+      database.execSync(`
+        CREATE TABLE IF NOT EXISTS transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          type TEXT NOT NULL,
+          category TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_profile (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          email TEXT NOT NULL,
+          monthly_income_target INTEGER NOT NULL,
+          currency TEXT NOT NULL,
+          avatar_uri TEXT
+        );
+        CREATE TABLE IF NOT EXISTS budgets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL UNIQUE,
+          limit_amount INTEGER NOT NULL
+        );
+      `);
 
-    // Inisialisasi profil dasar bersih jika belum ada
-    const profile = db.getFirstSync<UserProfile>('SELECT * FROM user_profile WHERE id = 1');
-    if (!profile) {
-      db.runSync(
-        `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
-         VALUES (1, ?, ?, ?, ?, ?, ?)`,
-        [
-          memoryProfile.name,
-          memoryProfile.role,
-          memoryProfile.email,
-          memoryProfile.monthly_income_target,
-          memoryProfile.currency,
-          memoryProfile.avatar_uri || '',
-        ]
-      );
+      const profile = database.getFirstSync<UserProfile>('SELECT * FROM user_profile WHERE id = 1');
+      if (!profile) {
+        database.runSync(
+          `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
+           VALUES (1, ?, ?, ?, ?, ?, ?)`,
+          [
+            memoryProfile.name,
+            memoryProfile.role,
+            memoryProfile.email,
+            memoryProfile.monthly_income_target,
+            memoryProfile.currency,
+            memoryProfile.avatar_uri || '',
+          ]
+        );
+      }
+      isDbInitialized = true;
+    } catch (err) {
+      console.warn('SQLite initDatabase error:', err);
     }
   }
 }
 
 export function getUserProfile(): UserProfile {
-  if (db) {
-    const row = db.getFirstSync<UserProfile>('SELECT name, role, email, monthly_income_target, currency, avatar_uri FROM user_profile WHERE id = 1');
-    if (row) return row;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      const row = database.getFirstSync<UserProfile>(
+        'SELECT name, role, email, monthly_income_target, currency, avatar_uri FROM user_profile WHERE id = 1'
+      );
+      if (row) return row;
+    } catch (err) {
+      console.warn('getUserProfile error:', err);
+    }
   }
   return memoryProfile;
 }
 
 export function updateUserProfile(profile: UserProfile) {
-  if (db) {
-    db.runSync(
-      `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
-       VALUES (1, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name,
-         role = excluded.role,
-         email = excluded.email,
-         monthly_income_target = excluded.monthly_income_target,
-         currency = excluded.currency,
-         avatar_uri = excluded.avatar_uri`,
-      [profile.name, profile.role, profile.email, profile.monthly_income_target, profile.currency, profile.avatar_uri || '']
-    );
-    return;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      database.runSync(
+        `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
+         VALUES (1, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           role = excluded.role,
+           email = excluded.email,
+           monthly_income_target = excluded.monthly_income_target,
+           currency = excluded.currency,
+           avatar_uri = excluded.avatar_uri`,
+        [
+          profile.name,
+          profile.role,
+          profile.email,
+          profile.monthly_income_target,
+          profile.currency,
+          profile.avatar_uri || '',
+        ]
+      );
+      memoryProfile = { ...profile };
+      return;
+    } catch (err) {
+      console.warn('updateUserProfile error:', err);
+    }
   }
   memoryProfile = { ...profile };
 }
 
 // Transactions CRUD
 export function getTransactions(): Transaction[] {
-  if (db) {
-    return db.getAllSync<Transaction>(
-      'SELECT * FROM transactions ORDER BY datetime(created_at) DESC'
-    );
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      return database.getAllSync<Transaction>(
+        'SELECT * FROM transactions ORDER BY datetime(created_at) DESC'
+      );
+    } catch (err) {
+      console.warn('getTransactions error:', err);
+    }
   }
   return [...memoryTransactions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -141,12 +182,18 @@ export function insertTransaction(
   category: string
 ) {
   const now = new Date().toISOString();
-  if (db) {
-    db.runSync(
-      'INSERT INTO transactions (title, amount, type, category, created_at) VALUES (?, ?, ?, ?, ?)',
-      [title, amount, type, category, now]
-    );
-    return;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      database.runSync(
+        'INSERT INTO transactions (title, amount, type, category, created_at) VALUES (?, ?, ?, ?, ?)',
+        [title, amount, type, category, now]
+      );
+      return;
+    } catch (err) {
+      console.warn('insertTransaction error:', err);
+    }
   }
 
   memoryTransactions.push({
@@ -160,29 +207,47 @@ export function insertTransaction(
 }
 
 export function deleteTransaction(id: number) {
-  if (db) {
-    db.runSync('DELETE FROM transactions WHERE id = ?', [id]);
-    return;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      database.runSync('DELETE FROM transactions WHERE id = ?', [id]);
+      return;
+    } catch (err) {
+      console.warn('deleteTransaction error:', err);
+    }
   }
   memoryTransactions = memoryTransactions.filter((tx) => tx.id !== id);
 }
 
 // Budgets CRUD
 export function getBudgets(): Budget[] {
-  if (db) {
-    return db.getAllSync<Budget>('SELECT * FROM budgets ORDER BY id ASC');
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      return database.getAllSync<Budget>('SELECT * FROM budgets ORDER BY id ASC');
+    } catch (err) {
+      console.warn('getBudgets error:', err);
+    }
   }
   return [...memoryBudgets];
 }
 
 export function upsertBudget(category: string, limit_amount: number) {
-  if (db) {
-    db.runSync(
-      `INSERT INTO budgets (category, limit_amount) VALUES (?, ?)
-       ON CONFLICT(category) DO UPDATE SET limit_amount = excluded.limit_amount`,
-      [category, limit_amount]
-    );
-    return;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      database.runSync(
+        `INSERT INTO budgets (category, limit_amount) VALUES (?, ?)
+         ON CONFLICT(category) DO UPDATE SET limit_amount = excluded.limit_amount`,
+        [category, limit_amount]
+      );
+      return;
+    } catch (err) {
+      console.warn('upsertBudget error:', err);
+    }
   }
 
   const existingIdx = memoryBudgets.findIndex((b) => b.category === category);
@@ -198,9 +263,15 @@ export function upsertBudget(category: string, limit_amount: number) {
 }
 
 export function deleteBudget(id: number) {
-  if (db) {
-    db.runSync('DELETE FROM budgets WHERE id = ?', [id]);
-    return;
+  initDatabase();
+  const database = getDb();
+  if (database) {
+    try {
+      database.runSync('DELETE FROM budgets WHERE id = ?', [id]);
+      return;
+    } catch (err) {
+      console.warn('deleteBudget error:', err);
+    }
   }
   memoryBudgets = memoryBudgets.filter((b) => b.id !== id);
 }

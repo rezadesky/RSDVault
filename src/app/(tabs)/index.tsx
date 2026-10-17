@@ -38,7 +38,14 @@ const CATEGORIES = ['Makan & Minum', 'Transportasi', 'Belanja', 'Gaji', 'Tagihan
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile>(getUserProfile());
+  const [profile, setProfile] = useState<UserProfile>({
+    name: 'Pengguna RSDVault',
+    role: 'Personal (Pengguna Pribadi)',
+    email: 'pengguna@rsdvault.app',
+    monthly_income_target: 10000000,
+    currency: 'IDR (Rp)',
+    avatar_uri: '',
+  });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showBalance, setShowBalance] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,15 +38,33 @@ const ROLES_LIST = [
 
 export default function SetupProfileScreen() {
   const router = useRouter();
-  const current = getUserProfile();
 
-  const [name, setName] = useState(current.name === 'Pengguna RSDVault' ? '' : current.name);
-  const [role, setRole] = useState(current.role || 'Personal (Pengguna Pribadi)');
-  const [email, setEmail] = useState(current.email === 'pengguna@rsdvault.app' ? '' : current.email);
-  const [targetStr, setTargetStr] = useState(
-    current.monthly_income_target > 0 ? current.monthly_income_target.toString() : '10000000'
-  );
-  const [avatarUri, setAvatarUri] = useState<string>(current.avatar_uri || '');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('Personal (Pengguna Pribadi)');
+  const [email, setEmail] = useState('');
+  const [targetStr, setTargetStr] = useState('10000000');
+  const [avatarUri, setAvatarUri] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const current = getUserProfile();
+      if (current.name && current.name !== 'Pengguna RSDVault') {
+        setName(current.name);
+      }
+      if (current.role) setRole(current.role);
+      if (current.email && current.email !== 'pengguna@rsdvault.app') {
+        setEmail(current.email);
+      }
+      if (current.monthly_income_target > 0) {
+        setTargetStr(current.monthly_income_target.toString());
+      }
+      if (current.avatar_uri) {
+        setAvatarUri(current.avatar_uri);
+      }
+    } catch (e) {
+      console.warn('Load initial profile in SetupProfileScreen error:', e);
+    }
+  }, []);
 
   const handlePickImage = async () => {
     try {
