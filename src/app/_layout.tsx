@@ -9,9 +9,13 @@ import {
   Onest_800ExtraBold,
 } from '@expo-google-fonts/onest';
 import { useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Platform, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDatabase } from '../database/db';
+
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated and will be removed in a future release',
+]);
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
