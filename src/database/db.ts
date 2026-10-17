@@ -17,6 +17,7 @@ export interface UserProfile {
   monthly_income_target: number;
   currency: string;
   avatar_uri?: string;
+  cycle_mode?: 'weekly' | 'monthly';
 }
 
 export interface Budget {
@@ -38,6 +39,7 @@ let memoryProfile: UserProfile = {
   monthly_income_target: 10000000,
   currency: 'IDR (Rp)',
   avatar_uri: '',
+  cycle_mode: 'monthly',
 };
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -77,7 +79,8 @@ export function initDatabase() {
           email TEXT NOT NULL,
           monthly_income_target INTEGER NOT NULL,
           currency TEXT NOT NULL,
-          avatar_uri TEXT
+          avatar_uri TEXT,
+          cycle_mode TEXT DEFAULT 'monthly'
         );
         CREATE TABLE IF NOT EXISTS budgets (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,11 +89,16 @@ export function initDatabase() {
         );
       `);
 
+      // Migrasi kolom jika tabel lama belum memiliki cycle_mode
+      try {
+        database.execSync("ALTER TABLE user_profile ADD COLUMN cycle_mode TEXT DEFAULT 'monthly'");
+      } catch (_) {}
+
       const profile = database.getFirstSync<UserProfile>('SELECT * FROM user_profile WHERE id = 1');
       if (!profile) {
         database.runSync(
-          `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
-           VALUES (1, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri, cycle_mode)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?)`,
           [
             memoryProfile.name,
             memoryProfile.role,
@@ -98,6 +106,7 @@ export function initDatabase() {
             memoryProfile.monthly_income_target,
             memoryProfile.currency,
             memoryProfile.avatar_uri || '',
+            memoryProfile.cycle_mode || 'monthly',
           ]
         );
       }
@@ -114,9 +123,12 @@ export function getUserProfile(): UserProfile {
   if (database) {
     try {
       const row = database.getFirstSync<UserProfile>(
-        'SELECT name, role, email, monthly_income_target, currency, avatar_uri FROM user_profile WHERE id = 1'
+        'SELECT name, role, email, monthly_income_target, currency, avatar_uri, cycle_mode FROM user_profile WHERE id = 1'
       );
-      if (row) return row;
+      if (row) {
+        if (!row.cycle_mode) row.cycle_mode = 'monthly';
+        return row;
+      }
     } catch (err) {
       console.warn('getUserProfile error:', err);
     }
@@ -127,18 +139,20 @@ export function getUserProfile(): UserProfile {
 export function updateUserProfile(profile: UserProfile) {
   initDatabase();
   const database = getDb();
+  const cycleMode = profile.cycle_mode || 'monthly';
   if (database) {
     try {
       database.runSync(
-        `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri)
-         VALUES (1, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO user_profile (id, name, role, email, monthly_income_target, currency, avatar_uri, cycle_mode)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            role = excluded.role,
            email = excluded.email,
            monthly_income_target = excluded.monthly_income_target,
            currency = excluded.currency,
-           avatar_uri = excluded.avatar_uri`,
+           avatar_uri = excluded.avatar_uri,
+           cycle_mode = excluded.cycle_mode`,
         [
           profile.name,
           profile.role,
@@ -146,15 +160,16 @@ export function updateUserProfile(profile: UserProfile) {
           profile.monthly_income_target,
           profile.currency,
           profile.avatar_uri || '',
+          cycleMode,
         ]
       );
-      memoryProfile = { ...profile };
+      memoryProfile = { ...profile, cycle_mode: cycleMode };
       return;
     } catch (err) {
       console.warn('updateUserProfile error:', err);
     }
   }
-  memoryProfile = { ...profile };
+  memoryProfile = { ...profile, cycle_mode: cycleMode };
 }
 
 // Transactions CRUD

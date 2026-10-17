@@ -44,6 +44,7 @@ export default function SetupProfileScreen() {
   const [email, setEmail] = useState('');
   const [targetStr, setTargetStr] = useState('10000000');
   const [avatarUri, setAvatarUri] = useState<string>('');
+  const [cycleMode, setCycleMode] = useState<'weekly' | 'monthly'>('monthly');
 
   useEffect(() => {
     try {
@@ -60,6 +61,9 @@ export default function SetupProfileScreen() {
       }
       if (current.avatar_uri) {
         setAvatarUri(current.avatar_uri);
+      }
+      if (current.cycle_mode) {
+        setCycleMode(current.cycle_mode);
       }
     } catch (e) {
       console.warn('Load initial profile in SetupProfileScreen error:', e);
@@ -90,13 +94,28 @@ export default function SetupProfileScreen() {
     }
   };
 
+  const handleSelectRole = (selectedRole: string) => {
+    setRole(selectedRole);
+    if (selectedRole === 'Mahasiswa') {
+      setCycleMode('weekly');
+      if (targetStr === '10000000' || targetStr === '') {
+        setTargetStr('500000');
+      }
+    } else if (cycleMode === 'weekly' && selectedRole !== 'Mahasiswa') {
+      setCycleMode('monthly');
+      if (targetStr === '500000') {
+        setTargetStr('10000000');
+      }
+    }
+  };
+
   const handleFinishSetup = () => {
     if (!name.trim()) {
       Alert.alert('Perhatian', 'Silakan masukkan nama lengkap atau panggilan Anda.');
       return;
     }
 
-    const cleanTarget = parseInt(targetStr.replace(/[^0-9]/g, ''), 10) || 10000000;
+    const cleanTarget = parseInt(targetStr.replace(/[^0-9]/g, ''), 10) || (cycleMode === 'weekly' ? 500000 : 10000000);
 
     const updated: UserProfile = {
       name: name.trim(),
@@ -105,6 +124,7 @@ export default function SetupProfileScreen() {
       monthly_income_target: cleanTarget,
       currency: 'IDR (Rp)',
       avatar_uri: avatarUri,
+      cycle_mode: cycleMode,
     };
 
     updateUserProfile(updated);
@@ -207,7 +227,7 @@ export default function SetupProfileScreen() {
                 <TouchableOpacity
                   key={r}
                   style={[styles.roleChip, isSelected && styles.roleChipActive]}
-                  onPress={() => setRole(r)}
+                  onPress={() => handleSelectRole(r)}
                   activeOpacity={0.8}
                 >
                   {isSelected && <Check size={13} color="#FFFFFF" style={{ marginRight: 4 }} />}
@@ -219,13 +239,15 @@ export default function SetupProfileScreen() {
             })}
           </ScrollView>
 
-          {/* Target Pemasukan Bulanan */}
-          <Text style={styles.inputLabel}>Target Pendapatan Bulanan (Rp)</Text>
+          {/* Target Pemasukan Dinamis (Mingguan vs Bulanan) */}
+          <Text style={styles.inputLabel}>
+            {cycleMode === 'weekly' ? 'Target Uang Saku Mingguan (Rp)' : 'Target Pendapatan Bulanan (Rp)'}
+          </Text>
           <View style={styles.inputWrap}>
             <Target size={18} color="#64748B" style={styles.inputIcon} />
             <TextInput
               style={styles.textInput}
-              placeholder="Contoh: 10000000"
+              placeholder={cycleMode === 'weekly' ? 'Contoh: 500000' : 'Contoh: 10000000'}
               placeholderTextColor="#94A3B8"
               keyboardType="number-pad"
               value={targetStr}

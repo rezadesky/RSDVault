@@ -13,7 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MotiView } from 'moti';
 import { PieChart, Plus, AlertCircle, CheckCircle2, X, Trash2, Wallet } from 'lucide-react-native';
-import { getBudgets, upsertBudget, deleteBudget, getTransactions, Budget } from '../../database/db';
+import {
+  getBudgets,
+  upsertBudget,
+  deleteBudget,
+  getTransactions,
+  getUserProfile,
+  updateUserProfile,
+  Budget,
+  Transaction,
+} from '../../database/db';
 
 const SUGGESTED_CATEGORIES = [
   'Makan & Minum',
@@ -28,6 +37,7 @@ const SUGGESTED_CATEGORIES = [
 
 export default function BudgetScreen() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [cycleMode, setCycleMode] = useState<'weekly' | 'monthly'>('weekly');
   const [modalVisible, setModalVisible] = useState(false);
   const [newCategory, setNewCategory] = useState('Makan & Minum');
   const [newLimit, setNewLimit] = useState('');
@@ -44,15 +54,38 @@ export default function BudgetScreen() {
   };
 
   const loadData = () => {
+    const profile = getUserProfile();
+    if (profile.cycle_mode) {
+      setCycleMode(profile.cycle_mode);
+    }
+
     const budgetList = getBudgets();
     setBudgets(budgetList);
 
-    // Hitung pengeluaran real dari transaksi
+    // Hitung pengeluaran real dari transaksi sesuai cycleMode
     const txs = getTransactions();
     const map: Record<string, number> = {};
+
+    const now = new Date();
+    // Awal minggu (Senin)
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() + diffToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    // Awal bulan
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const activeCycle = profile.cycle_mode || cycleMode;
+    const thresholdDate = activeCycle === 'weekly' ? startOfWeek : startOfMonth;
+
     txs.forEach((tx) => {
       if (tx.type === 'expense') {
-        map[tx.category] = (map[tx.category] || 0) + tx.amount;
+        const txDate = new Date(tx.created_at);
+        if (txDate >= thresholdDate) {
+          map[tx.category] = (map[tx.category] || 0) + tx.amount;
+        }
       }
     });
     setSpentMap(map);
@@ -60,7 +93,13 @@ export default function BudgetScreen() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [cycleMode]);
+
+  const handleToggleCycle = (mode: 'weekly' | 'monthly') => {
+    setCycleMode(mode);
+    const profile = getUserProfile();
+    updateUserProfile({ ...profile, cycle_mode: mode });
+  };
 
   const totalLimit = useMemo(() => budgets.reduce((acc, b) => acc + b.limit_amount, 0), [budgets]);
   const totalSpent = useMemo(() => {
@@ -108,22 +147,64 @@ export default function BudgetScreen() {
 
       {/* Header Sticky / Posisi Tetap */}
       <View style={styles.fixedHeader}>
-        <View>
-          <Text style={styles.greetingSub}>Perencanaan Keuangan</Text>
-          <Text style={styles.headerTitle}>Anggaran Bulanan</Text>
+        <View style={styles.headerTopRow}>
+          <View>
+            <Text style={styles.greetingSub}>Perencanaan Keuangan</Text>
+            <Text style={styles.headerTitle}>
+              {cycleMode === 'weekly' ? 'Anggaran Mingguan' : 'Anggaran Bulanan'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              setNewCategory('Makan & Minum');
+              setNewLimit('');
+              setModalVisible(true);
+            }}
+          >
+            <Plus size={18} color="#FFF" />
+            <Text style={styles.addBtnText}>Atur</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          activeOpacity={0.8}
-          onPress={() => {
-            setNewCategory('Makan & Minum');
-            setNewLimit('');
-            setModalVisible(true);
-          }}
-        >
-          <Plus size={18} color="#FFF" />
-          <Text style={styles.addBtnText}>Atur</Text>
-        </TouchableOpacity>
+
+        {/* Toggle Siklus Keuangan: Mingguan vs Bulanan */}
+        <View style={styles.cycleToggleContainer}>
+          <TouchableOpacity
+            style={[
+              styles.cycleTab,
+              cycleMode === 'weekly' && styles.cycleTabActive,
+            ]}
+            onPress={() => handleToggleCycle('weekly')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.cycleTabText,
+                cycleMode === 'weekly' && styles.cycleTabTextActive,
+              ]}
+            >
+              Mingguan (Uang Saku)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.cycleTab,
+              cycleMode === 'monthly' && styles.cycleTabActive,
+            ]}
+            onPress={() => handleToggleCycle('monthly')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.cycleTabText,
+                cycleMode === 'monthly' && styles.cycleTabTextActive,
+              ]}
+            >
+              Bulanan (Gaji)
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -135,7 +216,9 @@ export default function BudgetScreen() {
         >
           <View style={styles.cardHeader}>
             <PieChart size={18} color="#1D4ED8" />
-            <Text style={styles.cardHeaderTitle}>Sisa Anggaran Bulan Ini</Text>
+            <Text style={styles.cardHeaderTitle}>
+              {cycleMode === 'weekly' ? 'Sisa Anggaran Minggu Ini' : 'Sisa Anggaran Bulan Ini'}
+            </Text>
           </View>
 
           <Text style={styles.remainingAmount}>
@@ -156,7 +239,9 @@ export default function BudgetScreen() {
               />
             </View>
             <View style={styles.progressLabels}>
-              <Text style={styles.progressText}>Terpakai: Rp {totalSpent.toLocaleString('id-ID')}</Text>
+              <Text style={styles.progressText}>
+                Terpakai: Rp {totalSpent.toLocaleString('id-ID')}
+              </Text>
               <Text style={[styles.progressText, { color: overallPercentage > 90 ? '#EF4444' : '#64748B' }]}>
                 {overallPercentage}%
               </Text>
@@ -177,7 +262,7 @@ export default function BudgetScreen() {
             </View>
             <Text style={styles.emptyTitle}>Belum Ada Anggaran</Text>
             <Text style={styles.emptySub}>
-              Tekan tombol "+ Atur" di atas untuk menetapkan batas anggaran belanja bulanan Anda.
+              Tekan tombol "+ Atur" di atas untuk menetapkan batas anggaran {cycleMode === 'weekly' ? 'mingguan' : 'bulanan'} Anda.
             </Text>
             <TouchableOpacity
               style={styles.emptyActionBtn}
@@ -306,9 +391,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   fixedHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
@@ -316,6 +398,42 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
     zIndex: 10,
+    gap: 12,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cycleToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 3,
+  },
+  cycleTab: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  cycleTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cycleTabText: {
+    fontFamily: 'Onest_500Medium',
+    fontSize: 12,
+    color: '#64748B',
+  },
+  cycleTabTextActive: {
+    fontFamily: 'Onest_700Bold',
+    color: '#1D4ED8',
   },
   header: {
     flexDirection: 'row',

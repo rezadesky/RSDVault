@@ -70,6 +70,7 @@ export default function ProfileScreen() {
   const [editTargetStr, setEditTargetStr] = useState('');
   const [editCurrency, setEditCurrency] = useState('IDR (Rp)');
   const [editAvatarUri, setEditAvatarUri] = useState<string>('');
+  const [editCycleMode, setEditCycleMode] = useState<'weekly' | 'monthly'>('monthly');
 
   useEffect(() => {
     const data = getUserProfile();
@@ -83,6 +84,7 @@ export default function ProfileScreen() {
     setEditTargetStr(profile.monthly_income_target.toString());
     setEditCurrency(profile.currency);
     setEditAvatarUri(profile.avatar_uri || '');
+    setEditCycleMode(profile.cycle_mode || 'monthly');
     setEditModalVisible(true);
   };
 
@@ -125,6 +127,7 @@ export default function ProfileScreen() {
       monthly_income_target: cleanTarget,
       currency: editCurrency,
       avatar_uri: editAvatarUri,
+      cycle_mode: editCycleMode,
     };
 
     updateUserProfile(updated);
@@ -271,7 +274,9 @@ export default function ProfileScreen() {
             <Target size={18} color="#1D4ED8" />
           </View>
           <View style={styles.targetInfo}>
-            <Text style={styles.targetLabel}>Target Pendapatan Bulanan</Text>
+            <Text style={styles.targetLabel}>
+              {profile.cycle_mode === 'weekly' ? 'Target Uang Saku Mingguan' : 'Target Pendapatan Bulanan'}
+            </Text>
             <Text style={styles.targetValue}>
               Rp {profile.monthly_income_target.toLocaleString('id-ID')}
             </Text>
@@ -284,6 +289,26 @@ export default function ProfileScreen() {
         {/* Preferensi Umum */}
         <Text style={styles.sectionTitle}>Preferensi Umum</Text>
         <View style={styles.menuGroup}>
+          <TouchableOpacity style={styles.menuItem} onPress={openEditModal}>
+            <View style={styles.menuLeft}>
+              <Target size={18} color="#1D4ED8" />
+              <View>
+                <Text style={styles.menuLabel}>Siklus Keuangan</Text>
+                <Text style={styles.menuDesc}>
+                  {profile.cycle_mode === 'weekly' ? 'Mingguan (Mahasiswa / Uang Saku)' : 'Bulanan (Karyawan / Gaji)'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.menuRight}>
+              <Text style={styles.menuValue}>
+                {profile.cycle_mode === 'weekly' ? 'Mingguan' : 'Bulanan'}
+              </Text>
+              <ChevronRight size={16} color="#94A3B8" />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.itemDivider} />
+
           <TouchableOpacity style={styles.menuItem} onPress={openEditModal}>
             <View style={styles.menuLeft}>
               <Coins size={18} color="#D97706" />
@@ -475,11 +500,51 @@ export default function ProfileScreen() {
                 ))}
               </View>
 
+              {/* Siklus Keuangan */}
+              <Text style={styles.inputLabel}>Siklus Keuangan</Text>
+              <View style={styles.currencyRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.currencyPill,
+                    editCycleMode === 'weekly' && styles.currencyPillActive,
+                  ]}
+                  onPress={() => setEditCycleMode('weekly')}
+                >
+                  <Text
+                    style={[
+                      styles.currencyPillText,
+                      editCycleMode === 'weekly' && styles.currencyPillTextActive,
+                    ]}
+                  >
+                    Mingguan (Uang Saku)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.currencyPill,
+                    editCycleMode === 'monthly' && styles.currencyPillActive,
+                  ]}
+                  onPress={() => setEditCycleMode('monthly')}
+                >
+                  <Text
+                    style={[
+                      styles.currencyPillText,
+                      editCycleMode === 'monthly' && styles.currencyPillTextActive,
+                    ]}
+                  >
+                    Bulanan (Gaji)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Target Finansial */}
-              <Text style={styles.inputLabel}>Target Pendapatan Bulanan (Rp)</Text>
+              <Text style={styles.inputLabel}>
+                {editCycleMode === 'weekly' ? 'Target Uang Saku Mingguan (Rp)' : 'Target Pendapatan Bulanan (Rp)'}
+              </Text>
               <TextInput
                 style={styles.input}
-                placeholder="Contoh: 15000000"
+                placeholder={editCycleMode === 'weekly' ? 'Contoh: 500000' : 'Contoh: 15000000'}
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
                 value={editTargetStr}
